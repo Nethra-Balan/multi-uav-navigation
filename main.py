@@ -11,7 +11,8 @@ from src.visualization import plot_environment
 from src.population import generate_population
 from src.path_planning import (
     calculate_total_distance,
-    calculate_collision_penalty
+    calculate_collision_penalty,
+    calculate_task_balance
 )
 
 
@@ -47,6 +48,8 @@ def main():
         environment.obstacles
     )
 
+    task_balance = calculate_task_balance(route_distances)
+
     print("UAV route distances:")
 
     for i, distance in enumerate(route_distances):
@@ -55,6 +58,7 @@ def main():
     print(f"Total path distance: {total_distance:.2f} m")
     print(f"UAV routes with collision: {collision_count}")
     print(f"Collision penalty: {collision_penalty:.2f}")
+    print(f"Task balance (standard deviation): {task_balance:.2f} m")
 
 
 if __name__ == "__main__":

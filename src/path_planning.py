@@ -136,3 +136,10 @@ def calculate_collision_penalty(
             collision_penalty += 5.0 * route_distance
 
     return collision_count, collision_penalty
+
+
+def calculate_task_balance(route_distances):
+    if not route_distances:
+        return 0.0
+
+    return float(np.std(route_distances))
