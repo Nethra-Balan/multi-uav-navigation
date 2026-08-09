@@ -20,10 +20,6 @@ def main():
     )
 
     plot_environment(environment)
-    for i, target in enumerate(environment.target_positions):
-        for obstacle in environment.obstacles:
-            if environment._is_point_inside_obstacle(target, obstacle):
-                print("Invalid target:", i + 1, target)
 
 
 if __name__ == "__main__":
