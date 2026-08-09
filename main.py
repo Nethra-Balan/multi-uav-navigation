@@ -12,6 +12,7 @@ from src.population import generate_population
 from src.fitness import calculate_fitness
 from src.selection import tournament_selection
 from src.crossover import crossover_population
+from src.mutation import mutate_population
 
 
 def main():
@@ -41,9 +42,12 @@ def main():
 
     children = crossover_population(selected)
 
-    print("Crossover results:")
+    mutated_population = mutate_population(children)
 
-    for i, chromosome in enumerate(children):
+    print("Mutation results:")
+
+    for i, (chromosome, mutation_type) in enumerate(mutated_population):
+
         result = calculate_fitness(
             chromosome,
             environment.uav_positions,
@@ -51,18 +55,14 @@ def main():
             environment.obstacles
         )
 
-        print(
-            f"Child {i + 1}: "
-            f"Fitness = {result['fitness']:.2f}"
-        )
+        print(f"\nChromosome {i + 1}")
+        print(f"Mutation: {mutation_type}")
+        print(f"Fitness: {result['fitness']:.2f}")
+        print(f"Routes: {chromosome.routes}")
 
         print(
-            f"Routes: {chromosome.routes}"
-        )
-
-        print(
-            f"Valid chromosome: "
-            f"{chromosome.is_valid(NUM_TARGETS, NUM_UAVS)}"
+            "Valid chromosome:",
+            chromosome.is_valid(NUM_TARGETS, NUM_UAVS)
         )
 
 
