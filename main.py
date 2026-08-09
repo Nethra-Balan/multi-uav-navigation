@@ -8,6 +8,8 @@ from config import (
 
 from src.environment import Environment
 from src.visualization import plot_environment
+from src.population import generate_population
+from src.path_planning import calculate_total_distance
 
 
 def main():
@@ -20,6 +22,27 @@ def main():
     )
 
     plot_environment(environment)
+
+    population = generate_population(
+        num_individuals=10,
+        num_targets=NUM_TARGETS,
+        num_uavs=NUM_UAVS
+    )
+
+    chromosome = population[0]
+
+    total_distance, route_distances = calculate_total_distance(
+        chromosome,
+        environment.uav_positions,
+        environment.target_positions
+    )
+
+    print("UAV route distances:")
+
+    for i, distance in enumerate(route_distances):
+        print(f"UAV {i + 1}: {distance:.2f} m")
+
+    print(f"Total path distance: {total_distance:.2f} m")
 
 
 if __name__ == "__main__":
