@@ -10,6 +10,8 @@ from src.environment import Environment
 from src.visualization import plot_environment
 from src.population import generate_population
 from src.fitness import calculate_fitness
+from src.selection import tournament_selection
+from src.crossover import crossover_population
 
 
 def main():
@@ -29,26 +31,39 @@ def main():
         num_uavs=NUM_UAVS
     )
 
-    chromosome = population[0]
-
-    result = calculate_fitness(
-        chromosome,
-        environment.uav_positions,
-        environment.target_positions,
-        environment.obstacles
+    selected = tournament_selection(
+        population,
+        num_selected=len(population),
+        start_positions=environment.uav_positions,
+        target_positions=environment.target_positions,
+        obstacles=environment.obstacles
     )
 
-    print("UAV route distances:")
+    children = crossover_population(selected)
 
-    for i, distance in enumerate(result["route_distances"]):
-        print(f"UAV {i + 1}: {distance:.2f} m")
+    print("Crossover results:")
 
-    print(f"Total path distance: {result['total_distance']:.2f} m")
-    print(f"UAV routes with collision: {result['collision_count']}")
-    print(f"Collision penalty: {result['collision_penalty']:.2f}")
-    print(f"Task balance: {result['task_balance']:.2f} m")
-    print(f"Task balance penalty: {result['balance_penalty']:.2f}")
-    print(f"Final fitness: {result['fitness']:.2f}")
+    for i, chromosome in enumerate(children):
+        result = calculate_fitness(
+            chromosome,
+            environment.uav_positions,
+            environment.target_positions,
+            environment.obstacles
+        )
+
+        print(
+            f"Child {i + 1}: "
+            f"Fitness = {result['fitness']:.2f}"
+        )
+
+        print(
+            f"Routes: {chromosome.routes}"
+        )
+
+        print(
+            f"Valid chromosome: "
+            f"{chromosome.is_valid(NUM_TARGETS, NUM_UAVS)}"
+        )
 
 
 if __name__ == "__main__":
