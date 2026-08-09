@@ -7,9 +7,13 @@ from config import (
 )
 
 from src.environment import Environment
-from src.visualization import plot_environment
+from src.visualization import (
+    plot_environment,
+    plot_optimized_paths
+)
 from src.population import generate_population
 from src.genetic_algorithm import GeneticAlgorithm
+from src.path_validation import validate_chromosome
 
 
 def main():
@@ -45,14 +49,11 @@ def main():
         f"Best fitness: {best_fitness:.2f}"
     )
 
-    print(
-        "Best chromosome routes:"
-    )
+    print("\nBest chromosome routes:")
 
     for i, route in enumerate(
         best_chromosome.routes
     ):
-
         print(
             f"UAV {i + 1}: {route}"
         )
@@ -63,6 +64,37 @@ def main():
             NUM_TARGETS,
             NUM_UAVS
         )
+    )
+
+    validation = validate_chromosome(
+        best_chromosome,
+        environment.uav_positions,
+        environment.target_positions,
+        environment.obstacles
+    )
+
+    print("\nFinal Path Validation")
+
+    print(
+        "Total collisions:",
+        validation["total_collisions"]
+    )
+
+    print(
+        "Routes with collision:",
+        validation["routes_with_collision"]
+    )
+
+    if validation["collision_free"]:
+        print("Collision-free solution: True")
+    else:
+        print("Collision-free solution: False")
+
+    print("\nDisplaying optimized paths...")
+
+    plot_optimized_paths(
+        environment,
+        best_chromosome
     )
 
 

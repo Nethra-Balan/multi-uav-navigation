@@ -1,19 +1,40 @@
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 
 def plot_environment(environment):
-    fig = plt.figure(figsize=(12, 9))
+    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection="3d")
 
-    start = environment.start_position
+    for obstacle in environment.obstacles:
+        minimum = obstacle["min"]
+        maximum = obstacle["max"]
+
+        x = minimum[0]
+        y = minimum[1]
+        z = minimum[2]
+
+        dx = maximum[0] - minimum[0]
+        dy = maximum[1] - minimum[1]
+        dz = maximum[2] - minimum[2]
+
+        ax.bar3d(
+            x,
+            y,
+            z,
+            dx,
+            dy,
+            dz,
+            alpha=0.3
+        )
+
+    start_positions = environment.uav_positions
 
     ax.scatter(
-        start[0],
-        start[1],
-        start[2],
-        marker="*",
-        s=150,
+        start_positions[:, 0],
+        start_positions[:, 1],
+        start_positions[:, 2],
+        marker="^",
+        s=80,
         label="UAV Start"
     )
 
@@ -28,49 +49,103 @@ def plot_environment(environment):
         label="Targets"
     )
 
-    for obstacle in environment.obstacles:
-        minimum = obstacle["min"]
-        maximum = obstacle["max"]
-
-        x1, y1, z1 = minimum
-        x2, y2, z2 = maximum
-
-        vertices = [
-            [x1, y1, z1],
-            [x2, y1, z1],
-            [x2, y2, z1],
-            [x1, y2, z1],
-            [x1, y1, z2],
-            [x2, y1, z2],
-            [x2, y2, z2],
-            [x1, y2, z2]
-        ]
-
-        faces = [
-            [vertices[0], vertices[1], vertices[2], vertices[3]],
-            [vertices[4], vertices[5], vertices[6], vertices[7]],
-            [vertices[0], vertices[1], vertices[5], vertices[4]],
-            [vertices[2], vertices[3], vertices[7], vertices[6]],
-            [vertices[1], vertices[2], vertices[6], vertices[5]],
-            [vertices[0], vertices[3], vertices[7], vertices[4]]
-        ]
-
-        ax.add_collection3d(
-            Poly3DCollection(
-                faces,
-                alpha=0.3
-            )
-        )
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
 
     ax.set_xlim(0, environment.width)
     ax.set_ylim(0, environment.depth)
     ax.set_zlim(0, environment.height)
 
-    ax.set_xlabel("X (m)")
-    ax.set_ylabel("Y (m)")
-    ax.set_zlabel("Z (m)")
+    ax.set_title("3D Multi-UAV Environment")
 
-    ax.set_title("Multi-UAV 3D Environment")
+    ax.legend()
+
+    plt.show()
+
+
+def plot_optimized_paths(environment, chromosome):
+    fig = plt.figure(figsize=(12, 9))
+    ax = fig.add_subplot(111, projection="3d")
+
+    for obstacle in environment.obstacles:
+        minimum = obstacle["min"]
+        maximum = obstacle["max"]
+
+        x = minimum[0]
+        y = minimum[1]
+        z = minimum[2]
+
+        dx = maximum[0] - minimum[0]
+        dy = maximum[1] - minimum[1]
+        dz = maximum[2] - minimum[2]
+
+        ax.bar3d(
+            x,
+            y,
+            z,
+            dx,
+            dy,
+            dz,
+            alpha=0.25
+        )
+
+    targets = environment.target_positions
+
+    ax.scatter(
+        targets[:, 0],
+        targets[:, 1],
+        targets[:, 2],
+        marker="o",
+        s=25,
+        label="Targets"
+    )
+
+    for uav_index, route in enumerate(chromosome.routes):
+
+        start = environment.uav_positions[uav_index]
+
+        points = [start]
+
+        for target_index in route:
+            points.append(
+                targets[target_index - 1]
+            )
+
+        points = list(points)
+
+        x_values = [point[0] for point in points]
+        y_values = [point[1] for point in points]
+        z_values = [point[2] for point in points]
+
+        ax.plot(
+            x_values,
+            y_values,
+            z_values,
+            marker="o",
+            linewidth=2,
+            label=f"UAV {uav_index + 1}"
+        )
+
+        ax.scatter(
+            start[0],
+            start[1],
+            start[2],
+            marker="^",
+            s=80
+        )
+
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+
+    ax.set_xlim(0, environment.width)
+    ax.set_ylim(0, environment.depth)
+    ax.set_zlim(0, environment.height)
+
+    ax.set_title(
+        "Optimized Multi-UAV 3D Path Planning"
+    )
 
     ax.legend()
 
