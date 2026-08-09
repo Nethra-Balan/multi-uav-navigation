@@ -9,11 +9,7 @@ from config import (
 from src.environment import Environment
 from src.visualization import plot_environment
 from src.population import generate_population
-from src.path_planning import (
-    calculate_total_distance,
-    calculate_collision_penalty,
-    calculate_task_balance
-)
+from src.fitness import calculate_fitness
 
 
 def main():
@@ -35,30 +31,24 @@ def main():
 
     chromosome = population[0]
 
-    total_distance, route_distances = calculate_total_distance(
-        chromosome,
-        environment.uav_positions,
-        environment.target_positions
-    )
-
-    collision_count, collision_penalty = calculate_collision_penalty(
+    result = calculate_fitness(
         chromosome,
         environment.uav_positions,
         environment.target_positions,
         environment.obstacles
     )
 
-    task_balance = calculate_task_balance(route_distances)
-
     print("UAV route distances:")
 
-    for i, distance in enumerate(route_distances):
+    for i, distance in enumerate(result["route_distances"]):
         print(f"UAV {i + 1}: {distance:.2f} m")
 
-    print(f"Total path distance: {total_distance:.2f} m")
-    print(f"UAV routes with collision: {collision_count}")
-    print(f"Collision penalty: {collision_penalty:.2f}")
-    print(f"Task balance (standard deviation): {task_balance:.2f} m")
+    print(f"Total path distance: {result['total_distance']:.2f} m")
+    print(f"UAV routes with collision: {result['collision_count']}")
+    print(f"Collision penalty: {result['collision_penalty']:.2f}")
+    print(f"Task balance: {result['task_balance']:.2f} m")
+    print(f"Task balance penalty: {result['balance_penalty']:.2f}")
+    print(f"Final fitness: {result['fitness']:.2f}")
 
 
 if __name__ == "__main__":
