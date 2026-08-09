@@ -1,38 +1,64 @@
+import numpy as np
 import matplotlib.pyplot as plt
+
+from src.waypoints import build_collision_aware_path
+
+
+def draw_obstacle(ax, obstacle, alpha=0.25):
+    minimum = obstacle["min"]
+    maximum = obstacle["max"]
+
+    x1, y1, z1 = minimum
+    x2, y2, z2 = maximum
+
+    vertices = np.array([
+        [x1, y1, z1],
+        [x2, y1, z1],
+        [x2, y2, z1],
+        [x1, y2, z1],
+        [x1, y1, z2],
+        [x2, y1, z2],
+        [x2, y2, z2],
+        [x1, y2, z2]
+    ])
+
+    faces = [
+        [vertices[0], vertices[1], vertices[2], vertices[3]],
+        [vertices[4], vertices[5], vertices[6], vertices[7]],
+        [vertices[0], vertices[1], vertices[5], vertices[4]],
+        [vertices[1], vertices[2], vertices[6], vertices[5]],
+        [vertices[2], vertices[3], vertices[7], vertices[6]],
+        [vertices[3], vertices[0], vertices[4], vertices[7]]
+    ]
+
+    ax.add_collection3d(
+        __import__("mpl_toolkits.mplot3d.art3d", fromlist=["Poly3DCollection"]).Poly3DCollection(
+            faces,
+            alpha=alpha
+        )
+    )
 
 
 def plot_environment(environment):
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection="3d")
 
-    for obstacle in environment.obstacles:
-        minimum = obstacle["min"]
-        maximum = obstacle["max"]
+    ax.set_xlim(0, environment.width)
+    ax.set_ylim(0, environment.depth)
+    ax.set_zlim(0, environment.height)
 
-        x = minimum[0]
-        y = minimum[1]
-        z = minimum[2]
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
 
-        dx = maximum[0] - minimum[0]
-        dy = maximum[1] - minimum[1]
-        dz = maximum[2] - minimum[2]
+    ax.set_title("Multi-UAV 3D Environment")
 
-        ax.bar3d(
-            x,
-            y,
-            z,
-            dx,
-            dy,
-            dz,
-            alpha=0.3
-        )
-
-    start_positions = environment.uav_positions
+    starts = environment.uav_positions
 
     ax.scatter(
-        start_positions[:, 0],
-        start_positions[:, 1],
-        start_positions[:, 2],
+        starts[:, 0],
+        starts[:, 1],
+        starts[:, 2],
         marker="^",
         s=80,
         label="UAV Start"
@@ -45,50 +71,37 @@ def plot_environment(environment):
         targets[:, 1],
         targets[:, 2],
         marker="o",
-        s=30,
+        s=25,
         label="Targets"
     )
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
+    for obstacle in environment.obstacles:
+        draw_obstacle(ax, obstacle)
+
+    ax.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_optimized_paths(
+    environment,
+    chromosome
+):
+    fig = plt.figure(figsize=(12, 9))
+    ax = fig.add_subplot(111, projection="3d")
 
     ax.set_xlim(0, environment.width)
     ax.set_ylim(0, environment.depth)
     ax.set_zlim(0, environment.height)
 
-    ax.set_title("3D Multi-UAV Environment")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
 
-    ax.legend()
-
-    plt.show()
-
-
-def plot_optimized_paths(environment, chromosome):
-    fig = plt.figure(figsize=(12, 9))
-    ax = fig.add_subplot(111, projection="3d")
-
-    for obstacle in environment.obstacles:
-        minimum = obstacle["min"]
-        maximum = obstacle["max"]
-
-        x = minimum[0]
-        y = minimum[1]
-        z = minimum[2]
-
-        dx = maximum[0] - minimum[0]
-        dy = maximum[1] - minimum[1]
-        dz = maximum[2] - minimum[2]
-
-        ax.bar3d(
-            x,
-            y,
-            z,
-            dx,
-            dy,
-            dz,
-            alpha=0.25
-        )
+    ax.set_title(
+        "Optimized Collision-Free Multi-UAV Paths"
+    )
 
     targets = environment.target_positions
 
@@ -101,52 +114,57 @@ def plot_optimized_paths(environment, chromosome):
         label="Targets"
     )
 
-    for uav_index, route in enumerate(chromosome.routes):
+    starts = environment.uav_positions
 
-        start = environment.uav_positions[uav_index]
+    ax.scatter(
+        starts[:, 0],
+        starts[:, 1],
+        starts[:, 2],
+        marker="^",
+        s=100,
+        label="UAV Start"
+    )
 
-        points = [start]
+    for obstacle in environment.obstacles:
+        draw_obstacle(ax, obstacle)
 
-        for target_index in route:
-            points.append(
-                targets[target_index - 1]
-            )
+    for uav_index, route in enumerate(
+        chromosome.routes
+    ):
 
-        points = list(points)
+        path = build_collision_aware_path(
+            starts[uav_index],
+            route,
+            targets,
+            environment.obstacles
+        )
 
-        x_values = [point[0] for point in points]
-        y_values = [point[1] for point in points]
-        z_values = [point[2] for point in points]
+        path = np.array(path)
 
         ax.plot(
-            x_values,
-            y_values,
-            z_values,
-            marker="o",
+            path[:, 0],
+            path[:, 1],
+            path[:, 2],
             linewidth=2,
             label=f"UAV {uav_index + 1}"
         )
 
-        ax.scatter(
-            start[0],
-            start[1],
-            start[2],
-            marker="^",
-            s=80
-        )
+        if len(path) > 2:
 
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
+            waypoints = path[1:-1]
 
-    ax.set_xlim(0, environment.width)
-    ax.set_ylim(0, environment.depth)
-    ax.set_zlim(0, environment.height)
+            ax.scatter(
+                waypoints[:, 0],
+                waypoints[:, 1],
+                waypoints[:, 2],
+                marker="x",
+                s=40
+            )
 
-    ax.set_title(
-        "Optimized Multi-UAV 3D Path Planning"
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.05, 1)
     )
 
-    ax.legend()
-
+    plt.tight_layout()
     plt.show()
