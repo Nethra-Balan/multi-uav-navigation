@@ -9,14 +9,11 @@ from config import (
 from src.environment import Environment
 from src.visualization import plot_environment
 from src.population import generate_population
-from src.fitness import calculate_fitness
-from src.selection import tournament_selection
-from src.crossover import crossover_population
-from src.mutation import mutate_population
-from src.elitism import select_elites
+from src.genetic_algorithm import GeneticAlgorithm
 
 
 def main():
+
     environment = Environment(
         size=ENVIRONMENT_SIZE,
         num_uavs=NUM_UAVS,
@@ -33,45 +30,40 @@ def main():
         num_uavs=NUM_UAVS
     )
 
-    fitness_values = []
-
-    for chromosome in population:
-        result = calculate_fitness(
-            chromosome,
-            environment.uav_positions,
-            environment.target_positions,
-            environment.obstacles
-        )
-
-        fitness_values.append(result["fitness"])
-
-    print("Initial population fitness:")
-
-    for i, fitness in enumerate(fitness_values):
-        print(f"Chromosome {i + 1}: {fitness:.2f}")
-
-    elites = select_elites(
-        population,
-        fitness_values,
+    genetic_algorithm = GeneticAlgorithm(
+        population=population,
+        environment=environment,
+        generations=20,
         elite_count=2
     )
 
-    print("\nElite chromosomes:")
+    best_chromosome, best_fitness = genetic_algorithm.run()
 
-    for i, chromosome in enumerate(elites):
-        elite_fitness = calculate_fitness(
-            chromosome,
-            environment.uav_positions,
-            environment.target_positions,
-            environment.obstacles
-        )["fitness"]
+    print("\nOptimization completed.")
 
-        print(f"Elite {i + 1}: Fitness = {elite_fitness:.2f}")
-        print(f"Routes: {chromosome.routes}")
+    print(
+        f"Best fitness: {best_fitness:.2f}"
+    )
+
+    print(
+        "Best chromosome routes:"
+    )
+
+    for i, route in enumerate(
+        best_chromosome.routes
+    ):
+
         print(
-            "Valid chromosome:",
-            chromosome.is_valid(NUM_TARGETS, NUM_UAVS)
+            f"UAV {i + 1}: {route}"
         )
+
+    print(
+        "\nValid best chromosome:",
+        best_chromosome.is_valid(
+            NUM_TARGETS,
+            NUM_UAVS
+        )
+    )
 
 
 if __name__ == "__main__":
