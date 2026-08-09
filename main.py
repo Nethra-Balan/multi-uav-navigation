@@ -13,6 +13,7 @@ from src.fitness import calculate_fitness
 from src.selection import tournament_selection
 from src.crossover import crossover_population
 from src.mutation import mutate_population
+from src.elitism import select_elites
 
 
 def main():
@@ -32,22 +33,9 @@ def main():
         num_uavs=NUM_UAVS
     )
 
-    selected = tournament_selection(
-        population,
-        num_selected=len(population),
-        start_positions=environment.uav_positions,
-        target_positions=environment.target_positions,
-        obstacles=environment.obstacles
-    )
+    fitness_values = []
 
-    children = crossover_population(selected)
-
-    mutated_population = mutate_population(children)
-
-    print("Mutation results:")
-
-    for i, (chromosome, mutation_type) in enumerate(mutated_population):
-
+    for chromosome in population:
         result = calculate_fitness(
             chromosome,
             environment.uav_positions,
@@ -55,11 +43,31 @@ def main():
             environment.obstacles
         )
 
-        print(f"\nChromosome {i + 1}")
-        print(f"Mutation: {mutation_type}")
-        print(f"Fitness: {result['fitness']:.2f}")
-        print(f"Routes: {chromosome.routes}")
+        fitness_values.append(result["fitness"])
 
+    print("Initial population fitness:")
+
+    for i, fitness in enumerate(fitness_values):
+        print(f"Chromosome {i + 1}: {fitness:.2f}")
+
+    elites = select_elites(
+        population,
+        fitness_values,
+        elite_count=2
+    )
+
+    print("\nElite chromosomes:")
+
+    for i, chromosome in enumerate(elites):
+        elite_fitness = calculate_fitness(
+            chromosome,
+            environment.uav_positions,
+            environment.target_positions,
+            environment.obstacles
+        )["fitness"]
+
+        print(f"Elite {i + 1}: Fitness = {elite_fitness:.2f}")
+        print(f"Routes: {chromosome.routes}")
         print(
             "Valid chromosome:",
             chromosome.is_valid(NUM_TARGETS, NUM_UAVS)
