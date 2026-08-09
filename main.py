@@ -72,7 +72,7 @@ def main():
     genetic_algorithm = GeneticAlgorithm(
         population=population,
         environment=environment,
-        generations=20,
+        generations=30,
         elite_count=2
     )
 
