@@ -68,7 +68,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const point = payload as unknown as HistoryPoint;
           setTelemetry((current) => ({ ...current, ...point }));
           setHistory((current) => point.generation ? [...current.filter((item) => item.generation !== point.generation), point].sort((a, b) => a.generation - b.generation) : current);
-          setLifecycle("running");
+          setLifecycle((current) => current === "paused" ? current : "running");
         } else if (message.type === "optimization_completed") {
           setLifecycle("completed"); api.result(mission.mission_id).then(setResult).catch(() => undefined);
         } else if (message.type.includes("paused")) setLifecycle("paused");
