@@ -19,6 +19,39 @@ def _is_target(point, target_positions) -> bool:
     return any(np.array_equal(point, target) for target in target_positions)
 
 
+def _serialize_structured_path(path, route, target_positions):
+    points = [
+        {
+            "kind": "start",
+            "position": to_json_safe(path[0]),
+        }
+    ]
+    path_index = 1
+
+    for target_id in route:
+        target = target_positions[target_id - 1]
+        while path_index < len(path) and not np.array_equal(path[path_index], target):
+            points.append({
+                "kind": "waypoint",
+                "position": to_json_safe(path[path_index]),
+            })
+            path_index += 1
+
+        if path_index >= len(path):
+            raise ValueError(
+                "collision-aware path does not contain the expected target"
+            )
+
+        points.append({
+            "kind": "target",
+            "target": int(target_id),
+            "position": to_json_safe(path[path_index]),
+        })
+        path_index += 1
+
+    return points
+
+
 def extract_final_result(
     chromosome,
     environment,
@@ -46,6 +79,7 @@ def extract_final_result(
     )
 
     paths: List[List[Any]] = []
+    uav_paths = []
     waypoints: List[List[Any]] = []
     allocation = []
     collisions = []
@@ -58,6 +92,15 @@ def extract_final_result(
             environment.obstacles,
         )
         paths.append(to_json_safe(path))
+        uav_paths.append({
+            "uav": uav_index + 1,
+            "points": _serialize_structured_path(
+                path,
+                route,
+                environment.target_positions,
+            ),
+            "distance": float(metrics["route_distances"][uav_index]),
+        })
         waypoints.append([
             to_json_safe(point)
             for point in path[1:-1]
@@ -84,6 +127,7 @@ def extract_final_result(
     return {
         "best_chromosome": serialize_chromosome(chromosome),
         "paths": paths,
+        "uav_paths": uav_paths,
         "waypoints": waypoints,
         "allocation": allocation,
         "collisions": collisions,

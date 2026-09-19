@@ -46,7 +46,21 @@ def serialize_environment(environment: Environment) -> dict:
         },
         "start_position": to_json_safe(environment.start_position),
         "uav_positions": to_json_safe(environment.uav_positions),
+        "uavs": [
+            {
+                "id": index + 1,
+                "start_position": to_json_safe(position),
+            }
+            for index, position in enumerate(environment.uav_positions)
+        ],
         "target_positions": to_json_safe(environment.target_positions),
+        "targets": [
+            {
+                "id": index + 1,
+                "position": to_json_safe(position),
+            }
+            for index, position in enumerate(environment.target_positions)
+        ],
         "obstacles": [
             {
                 "id": index + 1,

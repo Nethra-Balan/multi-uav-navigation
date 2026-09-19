@@ -46,6 +46,17 @@ def test_health_and_mission_environment_are_real_and_json_safe():
         body = mission.json()
         assert body["environment"]["seed"] == 7
         assert len(body["environment"]["target_positions"]) == 6
+        assert body["environment"]["uavs"] == [
+            {"id": 1, "start_position": [10.0, 10.0, 10.0]},
+            {"id": 2, "start_position": [10.0, 10.0, 10.0]},
+        ]
+        assert [
+            target["id"] for target in body["environment"]["targets"]
+        ] == list(range(1, 7))
+        assert [
+            target["position"]
+            for target in body["environment"]["targets"]
+        ] == body["environment"]["target_positions"]
         assert len(body["environment"]["obstacles"]) == 1
         json.dumps(body)
 
@@ -131,7 +142,33 @@ def test_optimization_updates_websocket_and_final_result():
         result_body = result.json()
         assert len(result_body["allocation"]) == 2
         assert len(result_body["paths"]) == 2
+        assert len(result_body["uav_paths"]) == 2
+        for uav_path in result_body["uav_paths"]:
+            assert uav_path["uav"] in {1, 2}
+            assert uav_path["points"][0]["kind"] == "start"
+            assert all(
+                point["kind"] in {"start", "waypoint", "target"}
+                for point in uav_path["points"]
+            )
+            assert [
+                point["target"]
+                for point in uav_path["points"]
+                if point["kind"] == "target"
+            ] == result_body["allocation"][uav_path["uav"] - 1]["targets"]
+            assert all(
+                "target" in point
+                for point in uav_path["points"]
+                if point["kind"] == "target"
+            )
+            assert all(
+                "target" not in point
+                for point in uav_path["points"]
+                if point["kind"] != "target"
+            )
         assert "validation" in result_body
+        assert "waypoints" in result_body
+        assert "collisions" in result_body
+        assert "metrics" in result_body
         json.dumps(result_body)
 
 

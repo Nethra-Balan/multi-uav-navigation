@@ -22,7 +22,9 @@ export interface EnvironmentData {
   dimensions: { width: number; depth: number; height: number };
   start_position: number[];
   uav_positions: number[][];
+  uavs: { id: number; start_position: number[] }[];
   target_positions: number[][];
+  targets: { id: number; position: number[] }[];
   obstacles: { id: number; min: number[]; max: number[] }[];
   seed: number;
   uav_count: number;
@@ -51,6 +53,11 @@ export interface Telemetry {
 export interface FinalResult {
   best_chromosome: { routes: number[][] };
   paths: number[][][];
+  uav_paths: {
+    uav: number;
+    points: { kind: "start" | "waypoint" | "target"; target?: number; position: number[] }[];
+    distance: number;
+  }[];
   waypoints: number[][][];
   allocation: { uav: number; targets: number[]; target_count: number; path_distance: number }[];
   collisions: { uav: number; segment_index: number; start: number[]; end: number[]; obstacle: number }[];
