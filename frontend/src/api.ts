@@ -14,6 +14,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function normalizeEnvironment(value: EnvironmentData): EnvironmentData {
+  if (!Array.isArray(value.uav_positions) || !Array.isArray(value.target_positions)) {
+    throw new Error("Mission environment is incomplete.");
+  }
   return {
     ...value,
     uavs: value.uavs ?? value.uav_positions.map((start_position, index) => ({ id: index + 1, start_position })),
@@ -22,7 +25,10 @@ function normalizeEnvironment(value: EnvironmentData): EnvironmentData {
 }
 
 function normalizeResult(value: FinalResult): FinalResult {
-  if (value.uav_paths) return value;
+  if (!Array.isArray(value.paths) || value.paths.some((path) => !Array.isArray(path) || path.length === 0) || !Array.isArray(value.allocation) || !Array.isArray(value.waypoints)) {
+    throw new Error("Final optimization result is incomplete.");
+  }
+  if (Array.isArray(value.uav_paths) && value.uav_paths.every((route) => Array.isArray(route.points) && route.points.length > 0)) return value;
   return {
     ...value,
     uav_paths: value.paths.map((path, index) => {

@@ -12,9 +12,9 @@ type HistoryPoint = Telemetry & { generation: number };
 interface Store {
   config: MissionConfig; setConfig: (config: MissionConfig) => void;
   mission: MissionResponse | null; environment: EnvironmentData | null; result: FinalResult | null;
-  telemetry: Telemetry; history: HistoryPoint[]; lifecycle: Lifecycle; socketStatus: string; error: string | null;
+  telemetry: Telemetry; history: HistoryPoint[]; lifecycle: Lifecycle; socketStatus: string; backendStatus: "checking" | "online" | "offline"; error: string | null;
   createMission: () => Promise<void>; control: (action: "start" | "pause" | "resume" | "stop") => Promise<void>;
-  refreshStatus: () => Promise<void>;
+  refreshStatus: () => Promise<void>; clearError: () => void;
 }
 const Context = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -26,7 +26,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [lifecycle, setLifecycle] = useState<Lifecycle>("idle");
   const [socketStatus, setSocketStatus] = useState("offline");
+  const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    api.health()
+      .then((health) => {
+        if (!disposed) setBackendStatus(health.engine_available ? "online" : "offline");
+      })
+      .catch(() => {
+        if (!disposed) setBackendStatus("offline");
+      });
+    return () => { disposed = true; };
+  }, []);
 
   const createMission = useCallback(async () => {
     setError(null);
@@ -62,19 +75,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       socket = optimizationSocket(mission.mission_id); setSocketStatus("connecting");
       socket.onopen = () => setSocketStatus("connected");
       socket.onmessage = (event) => {
-        const message = JSON.parse(event.data) as SocketMessage;
+        let message: SocketMessage;
+        try {
+          message = JSON.parse(event.data) as SocketMessage;
+        } catch (err) {
+          console.error("Invalid optimization WebSocket message", err);
+          setError("Received an invalid update from the optimization stream.");
+          return;
+        }
         const payload = message.payload || {};
         if (message.type === "generation_update") {
           const point = payload as unknown as HistoryPoint;
           setTelemetry((current) => ({ ...current, ...point }));
           setHistory((current) => point.generation ? [...current.filter((item) => item.generation !== point.generation), point].sort((a, b) => a.generation - b.generation) : current);
-          setLifecycle((current) => current === "paused" ? current : "running");
+          setLifecycle((current) => (
+            ["paused", "stopping", "stopped", "completed", "error"].includes(current)
+              ? current
+              : "running"
+          ));
         } else if (message.type === "optimization_completed") {
-          setLifecycle("completed"); api.result(mission.mission_id).then(setResult).catch(() => undefined);
-        } else if (message.type.includes("paused")) setLifecycle("paused");
-        else if (message.type.includes("resumed") || message.type.includes("running")) setLifecycle("running");
-        else if (message.type.includes("stopped")) setLifecycle("stopped");
-        else if (message.type.includes("error")) { setLifecycle("error"); setError(String(payload.message || "Optimization error")); }
+          setLifecycle("completed");
+          api.result(mission.mission_id)
+            .then(setResult)
+            .catch((err) => {
+              console.error("Unable to load final optimization result", err);
+              setError(err instanceof Error ? err.message : "Final optimization result is unavailable.");
+            });
+        } else if (message.type === "optimization_paused") setLifecycle("paused");
+        else if (message.type === "optimization_resumed") setLifecycle("running");
+        else if (message.type === "optimization_running") {
+          setLifecycle((current) => current === "paused" || current === "stopping" || current === "stopped" || current === "completed" ? current : "running");
+        } else if (message.type === "optimization_stopped") {
+          setLifecycle((current) => current === "completed" ? current : "stopped");
+        } else if (message.type === "optimization_error") { setLifecycle("error"); setError(String(payload.message || "Optimization error")); }
       };
       socket.onclose = () => { setSocketStatus("offline"); if (!disposed) retry = window.setTimeout(connect, 2000); };
       socket.onerror = () => setSocketStatus("error");
@@ -83,7 +116,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => { disposed = true; if (retry) window.clearTimeout(retry); socket?.close(); setSocketStatus("offline"); };
   }, [mission]);
 
-  const value = useMemo(() => ({ config, setConfig, mission, environment, result, telemetry, history, lifecycle, socketStatus, error, createMission, control, refreshStatus }), [config, mission, environment, result, telemetry, history, lifecycle, socketStatus, error, createMission, control, refreshStatus]);
+  const clearError = useCallback(() => setError(null), []);
+  const value = useMemo(() => ({ config, setConfig, mission, environment, result, telemetry, history, lifecycle, socketStatus, backendStatus, error, createMission, control, refreshStatus, clearError }), [config, mission, environment, result, telemetry, history, lifecycle, socketStatus, backendStatus, error, createMission, control, refreshStatus, clearError]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useStore() { const value = useContext(Context); if (!value) throw new Error("useStore must be inside StoreProvider"); return value; }

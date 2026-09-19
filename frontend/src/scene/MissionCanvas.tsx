@@ -1,6 +1,6 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { GizmoHelper, GizmoViewport, Line, OrbitControls, Text } from "@react-three/drei";
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { EnvironmentData, FinalResult } from "../types";
 import { sceneDimensions, toSceneVector } from "./coordinateAdapter";
@@ -38,13 +38,14 @@ function CameraController({ preset, resetToken }: { preset: Props["cameraPreset"
   return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} minDistance={30} maxDistance={700} />;
 }
 
-function Boundary({ dimensions }: { dimensions: EnvironmentData["dimensions"] }) {
+const Boundary = memo(function Boundary({ dimensions }: { dimensions: EnvironmentData["dimensions"] }) {
   const size = sceneDimensions(dimensions);
-  return <lineSegments>
-    <edgesGeometry args={[new THREE.BoxGeometry(size.x, size.y, size.z)]} />
+  const geometry = useMemo(() => new THREE.BoxGeometry(size.x, size.y, size.z), [size.x, size.y, size.z]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <lineSegments geometry={geometry}>
     <lineBasicMaterial color="#31506b" transparent opacity={0.8} />
   </lineSegments>;
-}
+});
 
 function GridAndAxes({ dimensions, visibility }: { dimensions: EnvironmentData["dimensions"]; visibility: Visibility }) {
   const size = sceneDimensions(dimensions);
@@ -58,13 +59,13 @@ function GridAndAxes({ dimensions, visibility }: { dimensions: EnvironmentData["
   </group>;
 }
 
-function Obstacles({ environment, visible }: { environment: EnvironmentData; visible: boolean }) {
+const Obstacles = memo(function Obstacles({ environment, visible }: { environment: EnvironmentData; visible: boolean }) {
   return <group visible={visible}>{environment.obstacles.map((obstacle) => {
     const min = toSceneVector(obstacle.min); const max = toSceneVector(obstacle.max);
     const center = min.clone().add(max).multiplyScalar(0.5); const size = max.clone().sub(min);
     return <mesh key={obstacle.id} position={center}><boxGeometry args={[size.x, size.y, size.z]} /><meshStandardMaterial color="#b7791f" transparent opacity={0.34} roughness={0.8} /></mesh>;
   })}</group>;
-}
+});
 
 function Targets({ environment, result, visible, selected, visited, onSelect }: { environment: EnvironmentData; result: FinalResult | null; visible: boolean; selected: number | null; visited: number[]; onSelect: (id: number) => void }) {
   const assigned = useMemo(() => new Set(result?.allocation.flatMap((row) => row.targets) ?? []), [result]);
@@ -103,13 +104,13 @@ function Waypoints({ result, visible, selected }: { result: FinalResult | null; 
   return <group visible={visible}>{result?.waypoints.map((points, uavIndex) => points.map((point, index) => <mesh key={`${uavIndex}-${index}`} position={toSceneVector(point)}><octahedronGeometry args={[2.1, 0]} /><meshStandardMaterial color={selected === null || selected === uavIndex + 1 ? "#fbbf24" : "#6b7280"} emissive="#92400e" emissiveIntensity={0.4} /></mesh>))}</group>;
 }
 
-function Collisions({ environment, result, visible, selected, onSelect }: { environment: EnvironmentData; result: FinalResult | null; visible: boolean; selected: number | null; onSelect: (index: number) => void }) {
+const Collisions = memo(function Collisions({ environment, result, visible, selected, onSelect }: { environment: EnvironmentData; result: FinalResult | null; visible: boolean; selected: number | null; onSelect: (index: number) => void }) {
   return <group visible={visible}>{result?.collisions.map((collision, index) => {
     const start = toSceneVector(collision.start); const end = toSceneVector(collision.end); const center = start.clone().add(end).multiplyScalar(0.5);
     const obstacle = environment.obstacles.find((item) => item.id === collision.obstacle); const obstacleCenter = obstacle ? toSceneVector(obstacle.min).add(toSceneVector(obstacle.max)).multiplyScalar(0.5) : center;
     return <group key={index}><Line points={[start.toArray(), end.toArray()]} color={selected === index ? "#ffffff" : "#ef4444"} lineWidth={5} /><mesh position={obstacleCenter} onClick={(event) => { event.stopPropagation(); onSelect(index); }}><boxGeometry args={[6, 6, 6]} /><meshBasicMaterial color="#ef4444" transparent opacity={selected === index ? 0.65 : 0.28} /></mesh></group>;
   })}</group>;
-}
+});
 
 function Scene({ props }: { props: Props }) {
   return <><ambientLight intensity={1.4} /><directionalLight position={[100, 200, 120]} intensity={2} /><CameraController preset={props.cameraPreset} resetToken={props.resetToken} /><GridAndAxes dimensions={props.environment.dimensions} visibility={props.visibility} /><Obstacles environment={props.environment} visible={props.visibility.obstacles} /><Targets environment={props.environment} result={props.result} visible={props.visibility.targets} selected={props.selectedTarget} visited={props.visitedTargets} onSelect={props.onSelectTarget} /><Paths result={props.result} visible={props.visibility.paths} selected={props.selectedUav} selectedTarget={props.selectedTarget} onSelectTarget={props.onSelectTarget} /><Waypoints result={props.result} visible={props.visibility.waypoints} selected={props.selectedUav} /><Collisions environment={props.environment} result={props.result} visible={props.visibility.collisions} selected={props.selectedCollision} onSelect={props.onSelectCollision} /><Uavs environment={props.environment} result={props.result} visible={props.visibility.uavs} selected={props.selectedUav} positions={props.playbackPositions} onSelect={props.onSelectUav} /></>;
