@@ -41,7 +41,9 @@ def calculate_fitness(
     chromosome,
     uav_positions,
     target_positions,
-    obstacles
+    obstacles,
+    collision_penalty_weight=COLLISION_PENALTY,
+    balance_weight=BALANCE_WEIGHT
 ):
     route_distances = []
     collision_count = 0
@@ -74,13 +76,13 @@ def calculate_fitness(
     )
 
     collision_penalty = (
-        collision_count * COLLISION_PENALTY
+        collision_count * collision_penalty_weight
     )
 
     fitness = (
         total_distance
         + collision_penalty
-        + BALANCE_WEIGHT * balance_penalty
+        + balance_weight * balance_penalty
     )
 
     return {

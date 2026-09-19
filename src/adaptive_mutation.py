@@ -7,19 +7,25 @@ MIN_MUTATION_PROBABILITY = 0.05
 
 def get_mutation_probability(
     generation,
-    total_generations
+    total_generations,
+    minimum_probability=MIN_MUTATION_PROBABILITY,
+    maximum_probability=MAX_MUTATION_PROBABILITY
 ):
     if total_generations <= 1:
-        return MAX_MUTATION_PROBABILITY
+        return maximum_probability
+    if generation <= 0:
+        return maximum_probability
+    if generation >= total_generations - 1:
+        return minimum_probability
 
     progress = generation / (total_generations - 1)
 
     probability = (
-        MAX_MUTATION_PROBABILITY
+        maximum_probability
         - progress
         * (
-            MAX_MUTATION_PROBABILITY
-            - MIN_MUTATION_PROBABILITY
+            maximum_probability
+            - minimum_probability
         )
     )
 

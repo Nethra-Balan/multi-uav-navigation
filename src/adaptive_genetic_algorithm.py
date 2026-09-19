@@ -1,3 +1,7 @@
+import threading
+import time
+from typing import Optional
+
 from src.fitness import calculate_fitness
 from src.selection import tournament_selection
 from src.crossover import crossover_population
@@ -6,6 +10,13 @@ from src.adaptive_mutation import (
     mutate_population
 )
 from src.elitism import select_elites
+from src.adaptive_mutation import (
+    MAX_MUTATION_PROBABILITY,
+    MIN_MUTATION_PROBABILITY,
+)
+from src.crossover import CROSSOVER_PROBABILITY
+from src.integration.engine_events import GenerationCallback, GenerationEvent
+from src.fitness import COLLISION_PENALTY, BALANCE_WEIGHT
 
 
 class AdaptiveGeneticAlgorithm:
@@ -15,12 +26,22 @@ class AdaptiveGeneticAlgorithm:
         population,
         environment,
         generations=30,
-        elite_count=2
+        elite_count=2,
+        crossover_probability=CROSSOVER_PROBABILITY,
+        mutation_minimum=MIN_MUTATION_PROBABILITY,
+        mutation_maximum=MAX_MUTATION_PROBABILITY,
+        collision_penalty=COLLISION_PENALTY,
+        balance_weight=BALANCE_WEIGHT
     ):
         self.population = population
         self.environment = environment
         self.generations = generations
         self.elite_count = elite_count
+        self.crossover_probability = crossover_probability
+        self.mutation_minimum = mutation_minimum
+        self.mutation_maximum = mutation_maximum
+        self.collision_penalty = collision_penalty
+        self.balance_weight = balance_weight
 
         self.best_fitness_history = []
         self.mutation_history = []
@@ -38,7 +59,9 @@ class AdaptiveGeneticAlgorithm:
                 chromosome,
                 self.environment.uav_positions,
                 self.environment.target_positions,
-                self.environment.obstacles
+                self.environment.obstacles,
+                self.collision_penalty,
+                self.balance_weight
             )
 
             fitness_values.append(
@@ -47,106 +70,124 @@ class AdaptiveGeneticAlgorithm:
 
         return fitness_values
 
-    def run(self):
+    def run_generation(
+        self,
+        generation: int,
+        callback: Optional[GenerationCallback] = None
+    ) -> GenerationEvent:
+        fitness_values = self.evaluate_population(self.population)
 
-        for generation in range(
-            self.generations
-        ):
+        best_index = fitness_values.index(min(fitness_values))
+        generation_best_fitness = fitness_values[best_index]
 
-            fitness_values = (
-                self.evaluate_population(
-                    self.population
-                )
-            )
+        if generation_best_fitness < self.best_fitness:
+            self.best_fitness = generation_best_fitness
+            self.best_chromosome = self.population[best_index]
 
-            best_index = fitness_values.index(
-                min(fitness_values)
-            )
+        self.best_fitness_history.append(self.best_fitness)
 
-            generation_best_fitness = (
-                fitness_values[best_index]
-            )
+        mutation_probability = get_mutation_probability(
+            generation - 1,
+            self.generations,
+            minimum_probability=self.mutation_minimum,
+            maximum_probability=self.mutation_maximum,
+        )
+        self.mutation_history.append(mutation_probability)
 
-            if (
-                generation_best_fitness
-                < self.best_fitness
-            ):
+        best_result = calculate_fitness(
+            self.best_chromosome,
+            self.environment.uav_positions,
+            self.environment.target_positions,
+            self.environment.obstacles,
+            self.collision_penalty,
+            self.balance_weight,
+        )
 
-                self.best_fitness = (
-                    generation_best_fitness
-                )
+        print(
+            f"Generation {generation}: "
+            f"Best Fitness = {self.best_fitness:.2f} | "
+            f"Mutation Probability = {mutation_probability:.3f}"
+        )
 
-                self.best_chromosome = (
-                    self.population[best_index]
-                )
+        elites = select_elites(
+            self.population,
+            fitness_values,
+            elite_count=self.elite_count
+        )
 
-            self.best_fitness_history.append(
-                self.best_fitness
-            )
+        selected = tournament_selection(
+            self.population,
+            num_selected=len(self.population),
+            start_positions=self.environment.uav_positions,
+            target_positions=self.environment.target_positions,
+            obstacles=self.environment.obstacles,
+            collision_penalty_weight=self.collision_penalty,
+            balance_weight=self.balance_weight
+        )
 
-            mutation_probability = (
-                get_mutation_probability(
-                    generation,
-                    self.generations
-                )
-            )
+        children = crossover_population(
+            selected,
+            crossover_probability=self.crossover_probability
+        )
 
-            self.mutation_history.append(
-                mutation_probability
-            )
+        mutated_population = mutate_population(
+            children,
+            mutation_probability
+        )
 
-            print(
-                f"Generation {generation + 1}: "
-                f"Best Fitness = "
-                f"{self.best_fitness:.2f} | "
-                f"Mutation Probability = "
-                f"{mutation_probability:.3f}"
-            )
+        next_generation = [
+            chromosome
+            for chromosome, mutation_type in mutated_population
+        ]
+        next_generation[:self.elite_count] = elites
+        self.population = next_generation
 
-            elites = select_elites(
-                self.population,
-                fitness_values,
-                elite_count=self.elite_count
-            )
+        event = GenerationEvent(
+            generation=generation,
+            total_generations=self.generations,
+            best_fitness=float(self.best_fitness),
+            mean_fitness=float(sum(fitness_values) / len(fitness_values)),
+            mutation_probability=float(mutation_probability),
+            total_path_distance=float(best_result["total_distance"]),
+            collision_count=int(best_result["collision_count"]),
+            balance_penalty=float(best_result["balance_penalty"]),
+            route_distances=[
+                float(distance)
+                for distance in best_result["route_distances"]
+            ],
+            target_counts=[
+                len(route)
+                for route in self.best_chromosome.routes
+            ],
+            best_chromosome=self.best_chromosome,
+            best_routes=[
+                [int(target_id) for target_id in route]
+                for route in self.best_chromosome.routes
+            ],
+            best_fitness_result=best_result,
+        )
 
-            selected = tournament_selection(
-                self.population,
-                num_selected=len(
-                    self.population
-                ),
-                start_positions=(
-                    self.environment.uav_positions
-                ),
-                target_positions=(
-                    self.environment.target_positions
-                ),
-                obstacles=(
-                    self.environment.obstacles
-                )
-            )
+        if callback is not None:
+            callback(event)
 
-            children = crossover_population(
-                selected
-            )
+        return event
 
-            mutated_population = (
-                mutate_population(
-                    children,
-                    mutation_probability
-                )
-            )
+    def run(
+        self,
+        callback: Optional[GenerationCallback] = None,
+        pause_event: Optional[threading.Event] = None,
+        stop_event: Optional[threading.Event] = None
+    ):
+        for generation in range(1, self.generations + 1):
+            if stop_event is not None and stop_event.is_set():
+                break
+            if pause_event is not None:
+                while pause_event.is_set():
+                    if stop_event is not None and stop_event.is_set():
+                        return self.best_chromosome, self.best_fitness
+                    time.sleep(0.05)
 
-            next_generation = [
-                chromosome
-                for chromosome, mutation_type
-                in mutated_population
-            ]
-
-            next_generation[
-                :self.elite_count
-            ] = elites
-
-            self.population = next_generation
+            self.run_generation(generation, callback)
 
         return (
             self.best_chromosome,

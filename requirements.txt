@@ -1,2 +1,7 @@
 numpy
 matplotlib
+fastapi
+uvicorn
+pydantic
+httpx
+pytest

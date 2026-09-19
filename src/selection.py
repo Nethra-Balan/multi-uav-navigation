@@ -11,7 +11,9 @@ def tournament_selection(
     num_selected,
     start_positions,
     target_positions,
-    obstacles
+    obstacles,
+    collision_penalty_weight=None,
+    balance_weight=None
 ):
     selected = []
 
@@ -27,7 +29,11 @@ def tournament_selection(
                 chromosome,
                 start_positions,
                 target_positions,
-                obstacles
+                obstacles,
+                **({
+                    "collision_penalty_weight": collision_penalty_weight,
+                    "balance_weight": balance_weight
+                } if collision_penalty_weight is not None and balance_weight is not None else {})
             )["fitness"]
         )
 
