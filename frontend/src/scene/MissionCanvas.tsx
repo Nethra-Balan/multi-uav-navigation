@@ -3,7 +3,7 @@ import { GizmoHelper, GizmoViewport, Line, OrbitControls, Text } from "@react-th
 import { memo, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { EnvironmentData, FinalResult } from "../types";
-import { sceneDimensions, toSceneVector } from "./coordinateAdapter";
+import { sceneCenter, sceneDimensions, toSceneVector } from "./coordinateAdapter";
 
 type Visibility = { targets: boolean; obstacles: boolean; uavs: boolean; paths: boolean; waypoints: boolean; collisions: boolean; grid: boolean; axes: boolean };
 type Props = {
@@ -25,25 +25,35 @@ type Props = {
 
 const routeColors = ["#54d6ff", "#86efac", "#fbbf24", "#c4b5fd", "#fb7185", "#67e8f9", "#fdba74", "#a7f3d0"];
 
-function CameraController({ preset, resetToken }: { preset: Props["cameraPreset"]; resetToken: number }) {
+function CameraController({ dimensions, preset, resetToken }: { dimensions: EnvironmentData["dimensions"]; preset: Props["cameraPreset"]; resetToken: number }) {
   const { camera } = useThree();
   const controls = useRef<any>(null);
   useEffect(() => {
-    const positions = { perspective: [260, 190, 280], top: [0, 330, 0.01], side: [330, 80, 0.01] } as const;
+    const center = sceneCenter(dimensions);
+    const positions = {
+      perspective: [center.x + 260, center.y + 190, center.z + 280],
+      top: [center.x, center.y + 330, center.z + 0.01],
+      side: [center.x + 330, center.y + 80, center.z + 0.01],
+    } as const;
     const position = positions[preset];
     camera.position.set(position[0], position[1], position[2]);
-    camera.lookAt(0, 0, 0);
-    controls.current?.target.set(0, 0, 0);
+    camera.lookAt(center);
+    controls.current?.target.copy(center);
     controls.current?.update();
-  }, [camera, preset, resetToken]);
+  }, [camera, dimensions, preset, resetToken]);
   return <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.08} minDistance={30} maxDistance={700} />;
 }
 
 const Boundary = memo(function Boundary({ dimensions }: { dimensions: EnvironmentData["dimensions"] }) {
   const size = sceneDimensions(dimensions);
-  const geometry = useMemo(() => new THREE.BoxGeometry(size.x, size.y, size.z), [size.x, size.y, size.z]);
+  const geometry = useMemo(() => {
+    const box = new THREE.BoxGeometry(size.x, size.y, size.z);
+    const edges = new THREE.EdgesGeometry(box);
+    box.dispose();
+    return edges;
+  }, [size.x, size.y, size.z]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <lineSegments geometry={geometry}>
+  return <lineSegments geometry={geometry} position={[size.x / 2, size.y / 2, size.z / 2]}>
     <lineBasicMaterial color="#4d91a2" transparent opacity={0.9} />
   </lineSegments>;
 });
@@ -51,12 +61,12 @@ const Boundary = memo(function Boundary({ dimensions }: { dimensions: Environmen
 function GridAndAxes({ dimensions, visibility }: { dimensions: EnvironmentData["dimensions"]; visibility: Visibility }) {
   const size = sceneDimensions(dimensions);
   return <group>
-    {visibility.grid && <gridHelper args={[Math.max(size.x, size.z), 20, "#3e8192", "#1b3e4d"]} rotation={[0, 0, 0]} />}
+    {visibility.grid && <gridHelper args={[Math.max(size.x, size.z), 20, "#3e8192", "#1b3e4d"]} position={[size.x / 2, 0, size.z / 2]} rotation={[0, 0, 0]} />}
     {visibility.axes && <GizmoHelper alignment="bottom-right" margin={[70, 70]}><GizmoViewport axisColors={["#ef4444", "#22c55e", "#3b82f6"]} labelColor="white" /></GizmoHelper>}
     <Boundary dimensions={dimensions} />
-    <Text position={[size.x / 2 + 8, 0, 0]} rotation={[0, Math.PI / 2, 0]} fontSize={5} color="#5c7890">X</Text>
-    <Text position={[0, size.y / 2 + 8, 0]} fontSize={5} color="#5c7890">Z</Text>
-    <Text position={[0, 0, size.z / 2 + 8]} rotation={[0, Math.PI, 0]} fontSize={5} color="#5c7890">Y</Text>
+    <Text position={[size.x + 8, 0, 0]} rotation={[0, Math.PI / 2, 0]} fontSize={5} color="#5c7890">X</Text>
+    <Text position={[0, size.y + 8, 0]} fontSize={5} color="#5c7890">Z</Text>
+    <Text position={[0, 0, size.z + 8]} rotation={[0, Math.PI, 0]} fontSize={5} color="#5c7890">Y</Text>
   </group>;
 }
 
@@ -131,7 +141,8 @@ const Collisions = memo(function Collisions({ environment, result, visible, sele
 });
 
 function Scene({ props }: { props: Props }) {
-  return <><ambientLight intensity={1.1} /><directionalLight position={[100, 200, 120]} intensity={2.2} /><pointLight position={[0, 120, 0]} color="#47d9eb" intensity={1.2} distance={500} /><CameraController preset={props.cameraPreset} resetToken={props.resetToken} /><GridAndAxes dimensions={props.environment.dimensions} visibility={props.visibility} /><Obstacles environment={props.environment} visible={props.visibility.obstacles} /><Targets environment={props.environment} result={props.result} visible={props.visibility.targets} selected={props.selectedTarget} visited={props.visitedTargets} onSelect={props.onSelectTarget} /><Paths result={props.result} visible={props.visibility.paths} selected={props.selectedUav} selectedTarget={props.selectedTarget} onSelectTarget={props.onSelectTarget} /><Waypoints result={props.result} visible={props.visibility.waypoints} selected={props.selectedUav} /><Collisions environment={props.environment} result={props.result} visible={props.visibility.collisions} selected={props.selectedCollision} onSelect={props.onSelectCollision} /><Uavs environment={props.environment} result={props.result} visible={props.visibility.uavs} selected={props.selectedUav} positions={props.playbackPositions} onSelect={props.onSelectUav} playbackActive={props.playbackActive} /></>;
+  const center = sceneCenter(props.environment.dimensions);
+  return <><ambientLight intensity={1.1} /><directionalLight position={[center.x + 100, center.y + 200, center.z + 120]} intensity={2.2} /><pointLight position={[center.x, center.y + 120, center.z]} color="#47d9eb" intensity={1.2} distance={500} /><CameraController dimensions={props.environment.dimensions} preset={props.cameraPreset} resetToken={props.resetToken} /><GridAndAxes dimensions={props.environment.dimensions} visibility={props.visibility} /><Obstacles environment={props.environment} visible={props.visibility.obstacles} /><Targets environment={props.environment} result={props.result} visible={props.visibility.targets} selected={props.selectedTarget} visited={props.visitedTargets} onSelect={props.onSelectTarget} /><Paths result={props.result} visible={props.visibility.paths} selected={props.selectedUav} selectedTarget={props.selectedTarget} onSelectTarget={props.onSelectTarget} /><Waypoints result={props.result} visible={props.visibility.waypoints} selected={props.selectedUav} /><Collisions environment={props.environment} result={props.result} visible={props.visibility.collisions} selected={props.selectedCollision} onSelect={props.onSelectCollision} /><Uavs environment={props.environment} result={props.result} visible={props.visibility.uavs} selected={props.selectedUav} positions={props.playbackPositions} onSelect={props.onSelectUav} playbackActive={props.playbackActive} /></>;
 }
 
 export function MissionCanvas(props: Props) {
